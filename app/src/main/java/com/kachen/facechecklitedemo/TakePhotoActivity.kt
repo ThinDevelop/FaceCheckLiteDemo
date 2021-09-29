@@ -4,21 +4,27 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.ImageFormat
-import android.graphics.Matrix
+import android.graphics.*
 import android.media.Image
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import android.util.Size
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
+import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.databinding.DataBindingUtil
+import androidx.databinding.DataBindingUtil.setContentView
+import androidx.databinding.ViewDataBinding
 import androidx.lifecycle.Observer
 import com.google.android.gms.tasks.OnSuccessListener
 import com.google.mlkit.vision.common.InputImage
@@ -41,29 +47,28 @@ private const val MAX_RESULT_DISPLAY = 2 // Maximum number of results displayed
 private const val TAG = "TFL Classify" // Name for logging
 private const val REQUEST_CODE_PERMISSIONS = 999 // Return code after asking for permission
 private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA) // permission needed
-
 lateinit var faceDetector: com.google.mlkit.vision.face.FaceDetector
 
 // Listener for the result of the ImageAnalyzer
 typealias RecognitionListener = (recognition: List<Recognition>) -> Unit
 
+val spoofRate = 0.75
+var livenessDone = false
 /**
  * Main entry point into TensorFlow Lite Classifier
  */
 class TakePhotoActivity : AppCompatActivity() {
-
     // CameraX variables
     private lateinit var preview: Preview // Preview use case, fast, responsive view of the camera
     private lateinit var imageAnalyzer: ImageAnalysis // Analysis use case, for running ML code
     private lateinit var camera: Camera
     private val cameraExecutor = Executors.newSingleThreadExecutor()
+    var livenessScore = 0
 
     // Views attachment
-
     private val viewFinder by lazy {
         findViewById<PreviewView>(R.id.viewFinder) // Display the preview image from Camera
     }
-
 
     // Contains the recognition result. Since  it is a viewModel, it will survive screen rotations
     private val recogViewModel: RecognitionListViewModel by viewModels()
@@ -73,21 +78,17 @@ class TakePhotoActivity : AppCompatActivity() {
         setContentView(R.layout.activity_takephoto)
         val options = FaceDetectorOptions.Builder()
             .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
-//            .setMinFaceSize(0.1f)
+            .setMinFaceSize(0.1f)
             .build()
-
+        livenessDone = false
         faceDetector = FaceDetection.getClient(options)
-
         // Request camera permissions
         if (allPermissionsGranted()) {
             startCamera()
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
-
-
 //        calibrationSubject2 = PublishSubject.create()
-
         // Attach an observer on the LiveData field of recognitionList
         // This will notify the recycler view to update every time when a new list is set on the
         // LiveData field of recognitionList.
@@ -95,17 +96,27 @@ class TakePhotoActivity : AppCompatActivity() {
             //update data
             for (item in it) {
                 if (item.label.equals("spoof", true)) {
-                    if (item.confidence > 0.75) {
+                    if (item.confidence > spoofRate) {
                         Log.e("result", "" + item.confidence + " item.confidence : Spoof")
                         txt_result.setText("Spoof")
+                        if (livenessScore > 0 && livenessScore < 100) {
+                            livenessScore -= 10
+                            txt_result.setText("livenessScore : " + livenessScore)
+                        }
                     } else {
+                        livenessScore += 10
                         Log.e("result", "" + item.confidence + " item.confidence : Live")
-                        txt_result.setText("Live")
+                        if (livenessScore >= 100) {
+                            txt_result.setText("liveness : Pass")
+                            livenessDone = true
+                            capture.visibility = View.VISIBLE
+                        } else {
+                            txt_result.setText("livenessScore : " + livenessScore)
+                        }
                     }
                 }
             }
         })
-
     }
 
     /**
@@ -128,7 +139,8 @@ class TakePhotoActivity : AppCompatActivity() {
                 // Best practice is to explain and offer a chance to re-request but this is out of
                 // scope in this sample. More details:
                 // https://developer.android.com/training/permissions/usage-notes
-                Toast.makeText(this, getString(R.string.permission_deny_text), Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.permission_deny_text), Toast.LENGTH_SHORT)
+                    .show()
                 finish()
             }
         }
@@ -156,14 +168,14 @@ class TakePhotoActivity : AppCompatActivity() {
                 // This sets the ideal size for the image to be analyse, CameraX will choose the
                 // the most suitable resolution which may not be exactly the same or hold the same
                 // aspect ratio
-                .setTargetResolution(Size(224, 224))
+//                .setTargetResolution(Size(480, 640))
                 // How the Image Analyser should pipe in input, 1. every frame but drop no frame, or
                 // 2. go to the latest frame and may drop some frame. The default is 2.
                 // STRATEGY_KEEP_ONLY_LATEST. The following line is optional, kept here for clarity
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also { analysisUseCase: ImageAnalysis ->
-                    analysisUseCase.setAnalyzer(cameraExecutor, ImageAnalyzer(this) { items ->
+                    analysisUseCase.setAnalyzer(cameraExecutor, ImageAnalyzer(container, this) { items ->
                         // updating the list of recognised objects
                         recogViewModel.updateData(items)
                     })
@@ -190,41 +202,35 @@ class TakePhotoActivity : AppCompatActivity() {
         txt_result.setText(result)
     }
 
-    private class ImageAnalyzer(ctx: Context, private val listener: RecognitionListener) :
+    private class ImageAnalyzer(val container: ConstraintLayout, val ctx: Context, private val listener: RecognitionListener) :
             ImageAnalysis.Analyzer {
-
         // TODO 6. Optional GPU acceleration
-        private val options = Model.Options.Builder().setDevice(Model.Device.GPU).build()
+        private val options = Model.Options.Builder()
+            .setDevice(Model.Device.GPU)
+            .build()
 
-        // TODO 1: Add class variable TensorFlow Lite Model
-        // Initializing the flowerModel by lazy so that it runs in the same thread when the process
-        // method is called.
-//        private val flowerModel = Model3.newInstance(ctx)
+        //        private val flowerModel = Model3.newInstance(ctx)
         private val flowerModel = Model9.newInstance(ctx, options)
-
 
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
-
-            val items = mutableListOf<Recognition>()
-//            val bitmap = toBitmap(imageProxy) ?: return
-
+            if (livenessDone) return
             val mediaImage = imageProxy.image
             if (mediaImage != null) {
-                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-
-                checkFace(image, object : CheckFaceListener {
-                    override fun onSuccess() {
-                        Log.e("checkFace", "onSuccess")
+                checkFace(imageProxy, object : CheckFaceListener {
+                    override fun onSuccess(draw: Draw) {
+                        val items = mutableListOf<Recognition>()
                         // TODO 2: Convert Image to Bitmap then to TensorImage
                         val tfImage = TensorImage.fromBitmap(toBitmap(imageProxy))
+                        Log.e("checkFace", "onSuccess")
                         // TODO 3: Process the image using the trained model, sort and pick out the top results
                         val outputs = flowerModel.process(tfImage).probabilityAsCategoryList.apply {
-                                sortByDescending {
-                                    it.score
-                                }
+                            sortByDescending {
+                                it.score
                             }
+                        }
                             .take(MAX_RESULT_DISPLAY)
+//                        container.addView(draw)
                         // TODO 4: Converting the top probability items into a list of recognitions
                         for (output in outputs) {
                             items.add(Recognition(output.label, output.score))
@@ -241,32 +247,43 @@ class TakePhotoActivity : AppCompatActivity() {
         }
 
         interface CheckFaceListener {
-            fun onSuccess()
+            fun onSuccess(draw: Draw)
             fun onFail()
         }
 
-        fun checkFace(image: InputImage, listener: CheckFaceListener) {
-                faceDetector.process(image)
-                    .addOnSuccessListener(OnSuccessListener { faces ->
-                        if (faces.size > 0) {
-                            val faceWidth = faces[0].boundingBox.width()
-                            Log.e("faces width", "width : " + faceWidth)
-                            if (faceWidth > 100) {
-//                                listener.onSuccess()
+        @SuppressLint("UnsafeExperimentalUsageError")
+        fun checkFace(imageProxy: ImageProxy, listener: CheckFaceListener) {
+            val image = InputImage.fromMediaImage(imageProxy.image, imageProxy.imageInfo.rotationDegrees)
 
-                            } else {
-                                listener.onFail()
+            faceDetector.process(image)
+                .addOnSuccessListener(OnSuccessListener { faces ->
+                    if (faces.size > 0) {
+                        Executors.newSingleThreadExecutor()
+                            .execute {
+                                val face = faces[0]
+                                val faceWidth = face.boundingBox.width()
+                                Log.e("panya", "faceWidth : " + faceWidth)
+//                            if (container.childCount > 2) {
+//                                container.removeViewAt(container.childCount-1)
+//                            }
+                                val element = Draw(ctx, face.boundingBox, face.trackingId?.toString() ?: "Undefined")
+//                            container.addView(element)
+                                if (faceWidth > 100 && faceWidth < 190) {
+                                    listener.onSuccess(element)
+                                } else {
+                                    listener.onFail()
+                                }
                             }
-                        } else {
-                            listener.onFail()
-                        }
-                    })
-                    .addOnFailureListener { e ->
-                        e.printStackTrace()
+                    } else {
+                        listener.onFail()
                     }
+                })
+                .addOnFailureListener { e ->
+                    e.printStackTrace()
+                }
         }
 
-        fun toByteArray(bitmap: Bitmap) : ByteArray{
+        fun toByteArray(bitmap: Bitmap): ByteArray {
             val stream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
             return stream.toByteArray()
@@ -281,9 +298,7 @@ class TakePhotoActivity : AppCompatActivity() {
 
         @SuppressLint("UnsafeExperimentalUsageError", "UnsafeOptInUsageError")
         private fun toBitmap(imageProxy: ImageProxy): Bitmap? {
-
             val image = imageProxy.image ?: return null
-
             // Initialise Buffer
             if (!::bitmapBuffer.isInitialized) {
                 // The image rotation and RGB image buffer are initialized only once
@@ -292,15 +307,42 @@ class TakePhotoActivity : AppCompatActivity() {
                 rotationMatrix.postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
                 bitmapBuffer = Bitmap.createBitmap(imageProxy.width, imageProxy.height, Bitmap.Config.ARGB_8888)
             }
-
             // Pass image to an image analyser
             yuvToRgbConverter.yuvToRgb(image, bitmapBuffer)
-
             // Create the Bitmap in the correct orientation
             return Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, rotationMatrix, false)
         }
-        
-
     }
 
+    private class Draw(context: Context?, var rect: Rect, var text: String) : View(context) {
+        lateinit var paint: Paint
+        lateinit var textPaint: Paint
+
+        init {
+            init()
+        }
+
+        private fun init() {
+            paint = Paint()
+            paint.color = Color.RED
+            paint.strokeWidth = 10f
+            paint.style = Paint.Style.STROKE
+
+            textPaint = Paint()
+            textPaint.color = Color.RED
+            textPaint.style = Paint.Style.FILL
+            textPaint.textSize = 60f
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            canvas.drawText(text,
+                            rect.centerX()
+                                .toFloat(),
+                            rect.centerY()
+                                .toFloat(),
+                            textPaint)
+            canvas.drawRect(rect, paint)//แก้เป็นวงรี แล้วสุ่มหน้า size ใบหน้า เพื่อป้องกันการปลอมแปลง
+        }
+    }
 }
