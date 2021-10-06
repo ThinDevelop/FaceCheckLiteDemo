@@ -3,19 +3,15 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.kachen.facechecklitedemo">
 
-    <uses-feature android:name="android.hardware.camera.any" />
-
-    <!-- Specifying that the app will need camera permission -->
-    <uses-permission android:name="android.permission.CAMERA" />
-
     <application
+        android:name=".app.DemoApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        tools:ignore="AllowBackup"
-        android:theme="@style/Theme.FaceCheckLiteDemo">
+        android:theme="@style/Theme.FaceCheckLiteDemo"
+        tools:ignore="AllowBackup">
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -23,7 +19,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".TakePhotoActivity"/>
+        <activity android:name=".TakePhotoActivity" />
+        <activity
+            android:name=".EnrollActivity"
+            android:label="Enroll" />
+        <activity
+            android:name=".IdentifyActivity"
+            android:label="Identify" />
+        <activity
+            android:name=".VerifyActivity"
+            android:label="Verify" />
     </application>
+
+    <!-- Specifying that the app will need camera permission -->
+    <uses-feature android:name="android.hardware.camera.any" />
+    <uses-permission android:name="android.permission.CPAYSDK_IC_MODULE" />
+
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
 </manifest>

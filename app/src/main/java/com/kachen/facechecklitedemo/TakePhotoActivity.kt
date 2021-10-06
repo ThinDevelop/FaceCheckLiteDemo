@@ -3,15 +3,12 @@ package com.kachen.facechecklitedemo
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.*
-import android.media.Image
 import android.os.Bundle
-import android.os.Looper
 import android.util.Log
-import android.util.Size
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -22,15 +19,13 @@ import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.databinding.DataBindingUtil
-import androidx.databinding.DataBindingUtil.setContentView
-import androidx.databinding.ViewDataBinding
 import androidx.lifecycle.Observer
 import com.google.android.gms.tasks.OnSuccessListener
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.kachen.facechecklitedemo.ml.Model9
+import com.kachen.facechecklitedemo.util.ImageUtil
 import com.kachen.facechecklitedemo.util.YuvToRgbConverter
 import com.kachen.facechecklitedemo.viewmodel.Recognition
 import com.kachen.facechecklitedemo.viewmodel.RecognitionListViewModel
@@ -38,8 +33,6 @@ import kotlinx.android.synthetic.main.activity_takephoto.*
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.model.Model
 import java.io.ByteArrayOutputStream
-import java.io.IOError
-import java.util.*
 import java.util.concurrent.Executors
 
 // Constants
@@ -50,9 +43,9 @@ private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA) // permis
 lateinit var faceDetector: com.google.mlkit.vision.face.FaceDetector
 
 // Listener for the result of the ImageAnalyzer
-typealias RecognitionListener = (recognition: List<Recognition>) -> Unit
+typealias RecognitionListener = (recognition: List<Recognition>, face: Bitmap) -> Unit
 
-val spoofRate = 0.75
+val spoofRate = 0.7
 var livenessDone = false
 /**
  * Main entry point into TensorFlow Lite Classifier
@@ -88,30 +81,34 @@ class TakePhotoActivity : AppCompatActivity() {
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
-//        calibrationSubject2 = PublishSubject.create()
         // Attach an observer on the LiveData field of recognitionList
         // This will notify the recycler view to update every time when a new list is set on the
         // LiveData field of recognitionList.
         recogViewModel.recognitionList.observe(this, Observer {
             //update data
-            for (item in it) {
+            for (item in it.recognitions) {
                 if (item.label.equals("spoof", true)) {
                     if (item.confidence > spoofRate) {
                         Log.e("result", "" + item.confidence + " item.confidence : Spoof")
-                        txt_result.setText("Spoof")
+//                        txt_result.setText("Spoof")
                         if (livenessScore > 0 && livenessScore < 100) {
                             livenessScore -= 10
-                            txt_result.setText("livenessScore : " + livenessScore)
+//                            txt_result.setText("livenessScore : " + livenessScore)
                         }
+                        pBar.setProgress(livenessScore)
                     } else {
                         livenessScore += 10
                         Log.e("result", "" + item.confidence + " item.confidence : Live")
+                        pBar.setProgress(livenessScore)
                         if (livenessScore >= 100) {
-                            txt_result.setText("liveness : Pass")
+//                            txt_result.setText("liveness : Pass")
                             livenessDone = true
-                            capture.visibility = View.VISIBLE
+                            val intent = Intent()
+                            intent.putExtra("image_path", ImageUtil.saveImage(it.face).absolutePath)
+                            setResult(RESULT_OK, intent)
+                            finish()
                         } else {
-                            txt_result.setText("livenessScore : " + livenessScore)
+//                            txt_result.setText("livenessScore : " + livenessScore)
                         }
                     }
                 }
@@ -175,15 +172,14 @@ class TakePhotoActivity : AppCompatActivity() {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also { analysisUseCase: ImageAnalysis ->
-                    analysisUseCase.setAnalyzer(cameraExecutor, ImageAnalyzer(container, this) { items ->
+                    analysisUseCase.setAnalyzer(cameraExecutor, ImageAnalyzer(container, this) { items, face ->
                         // updating the list of recognised objects
-                        recogViewModel.updateData(items)
+                        recogViewModel.updateData(items, face)
                     })
                 }
             // Select camera, back is the default. If it is not available, choose front camera
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-//                if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA))
-//                    CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+            val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA))
+                    CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
             try {
                 // Unbind use cases before rebinding
                 cameraProvider.unbindAll()
@@ -199,7 +195,7 @@ class TakePhotoActivity : AppCompatActivity() {
     }
 
     fun setResult(result: String) {
-        txt_result.setText(result)
+//        txt_result.setText(result)
     }
 
     private class ImageAnalyzer(val container: ConstraintLayout, val ctx: Context, private val listener: RecognitionListener) :
@@ -215,13 +211,15 @@ class TakePhotoActivity : AppCompatActivity() {
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
             if (livenessDone) return
+
             val mediaImage = imageProxy.image
             if (mediaImage != null) {
                 checkFace(imageProxy, object : CheckFaceListener {
                     override fun onSuccess(draw: Draw) {
                         val items = mutableListOf<Recognition>()
                         // TODO 2: Convert Image to Bitmap then to TensorImage
-                        val tfImage = TensorImage.fromBitmap(toBitmap(imageProxy))
+                        val face = toBitmap(imageProxy)
+                        val tfImage = TensorImage.fromBitmap(face)
                         Log.e("checkFace", "onSuccess")
                         // TODO 3: Process the image using the trained model, sort and pick out the top results
                         val outputs = flowerModel.process(tfImage).probabilityAsCategoryList.apply {
@@ -235,7 +233,10 @@ class TakePhotoActivity : AppCompatActivity() {
                         for (output in outputs) {
                             items.add(Recognition(output.label, output.score))
                         }
-                        listener(items.toList())
+                        face?.let {
+                            listener(items.toList(), it)
+                        }
+
                         imageProxy.close()
                     }
 

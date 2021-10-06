@@ -76,4 +76,10 @@ dependencies {
     testImplementation 'junit:junit:4.13'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
+    
+    //edc lib
+
+    implementation files('libs/CentermPosOverseaLib201811081508.jar')
+    implementation files('libs/SmartPosLib_V3.1.2_20180205.jar')
+    implementation files('libs/aidl.jar')
 }
