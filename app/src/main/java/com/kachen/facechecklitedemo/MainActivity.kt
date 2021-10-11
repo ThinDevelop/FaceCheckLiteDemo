@@ -14,6 +14,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        version.setText("version : "+BuildConfig.VERSION_NAME)
         setContext(this)
         if (PreferenceUtil.getToken().equals("")) {
             NetworkUtil.getToken(object : NetworkUtil.Companion.NetworkLisener<TokenResponseModel> {

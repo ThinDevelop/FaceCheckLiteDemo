@@ -8,6 +8,8 @@ import android.content.pm.PackageManager
 import android.graphics.*
 import android.os.Bundle
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -45,8 +47,11 @@ lateinit var faceDetector: com.google.mlkit.vision.face.FaceDetector
 // Listener for the result of the ImageAnalyzer
 typealias RecognitionListener = (recognition: List<Recognition>, face: Bitmap) -> Unit
 
-val spoofRate = 0.7
+val spoofRate = 0.7 //if result > spoofRate mean this case is spoof
 var livenessDone = false
+var livenessScore = 0
+var livenessComplateScore = 100
+var livenessUnitScore = livenessComplateScore/3
 /**
  * Main entry point into TensorFlow Lite Classifier
  */
@@ -56,8 +61,8 @@ class TakePhotoActivity : AppCompatActivity() {
     private lateinit var imageAnalyzer: ImageAnalysis // Analysis use case, for running ML code
     private lateinit var camera: Camera
     private val cameraExecutor = Executors.newSingleThreadExecutor()
-    var livenessScore = 0
 
+    var switchCamera: Boolean = true
     // Views attachment
     private val viewFinder by lazy {
         findViewById<PreviewView>(R.id.viewFinder) // Display the preview image from Camera
@@ -77,7 +82,7 @@ class TakePhotoActivity : AppCompatActivity() {
         faceDetector = FaceDetection.getClient(options)
         // Request camera permissions
         if (allPermissionsGranted()) {
-            startCamera()
+            startCamera(switchCamera)
         } else {
             ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
@@ -91,16 +96,16 @@ class TakePhotoActivity : AppCompatActivity() {
                     if (item.confidence > spoofRate) {
                         Log.e("result", "" + item.confidence + " item.confidence : Spoof")
 //                        txt_result.setText("Spoof")
-                        if (livenessScore > 0 && livenessScore < 100) {
-                            livenessScore -= 10
+                        if (livenessScore > 0 && livenessScore < livenessComplateScore) {
+                            livenessScore -= livenessUnitScore
 //                            txt_result.setText("livenessScore : " + livenessScore)
                         }
                         pBar.setProgress(livenessScore)
                     } else {
-                        livenessScore += 10
+                        livenessScore += livenessUnitScore
                         Log.e("result", "" + item.confidence + " item.confidence : Live")
                         pBar.setProgress(livenessScore)
-                        if (livenessScore >= 100) {
+                        if (livenessScore >= livenessComplateScore) {
 //                            txt_result.setText("liveness : Pass")
                             livenessDone = true
                             val intent = Intent()
@@ -114,6 +119,25 @@ class TakePhotoActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        val inflater = menuInflater
+        inflater.inflate(R.menu.menu_switch_camera, menu)
+        // return true so that the menu pop up is opened
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.swtich -> {
+                switchCamera =  !switchCamera
+                startCamera(switchCamera)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     /**
@@ -130,7 +154,7 @@ class TakePhotoActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
-                startCamera()
+                startCamera(switchCamera)
             } else {
                 // Exit the app if permission is not granted
                 // Best practice is to explain and offer a chance to re-request but this is out of
@@ -151,7 +175,7 @@ class TakePhotoActivity : AppCompatActivity() {
      * 3. Attach both to the lifecycle of this activity
      * 4. Pipe the output of the preview object to the PreviewView on the screen
      */
-    private fun startCamera() {
+    private fun startCamera(front: Boolean) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener(Runnable {
@@ -178,8 +202,13 @@ class TakePhotoActivity : AppCompatActivity() {
                     })
                 }
             // Select camera, back is the default. If it is not available, choose front camera
-            val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA))
-                    CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+            var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                if (front && cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                    cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+                }
+//            val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA))
+//                    CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
+//            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
             try {
                 // Unbind use cases before rebinding
                 cameraProvider.unbindAll()
@@ -241,6 +270,7 @@ class TakePhotoActivity : AppCompatActivity() {
                     }
 
                     override fun onFail() {
+                        livenessScore = 0
                         imageProxy.close()
                     }
                 })

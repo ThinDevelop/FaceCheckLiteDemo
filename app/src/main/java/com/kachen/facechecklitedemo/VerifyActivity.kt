@@ -82,7 +82,11 @@ class VerifyActivity : BaseFaceCheckLiteActivity() {
 
                         override fun onError(errorModel: ErrorModel) {
                             Log.e("api", "verify onError "+ errorModel.error_code+" : "+errorModel.msg)
-                            Util.alertErrorDialogShow(this@VerifyActivity)
+                            Util.alertDialogShow(this@VerifyActivity, "เกิดข้อผิดพลาด", errorModel.msg, object : Util.DialogActionListener {
+                                override fun action() {
+
+                                }
+                            })
                         }
 
                         override fun onExpired() {
@@ -220,7 +224,7 @@ class VerifyActivity : BaseFaceCheckLiteActivity() {
         name.setText("")
         lastname.setText("")
         edt_address.setText("")
-        readcard.setImageBitmap(null)
+        readcard.setImageDrawable(getDrawable(R.drawable.card_photo))
         readcard.destroyDrawingCache()
     }
 

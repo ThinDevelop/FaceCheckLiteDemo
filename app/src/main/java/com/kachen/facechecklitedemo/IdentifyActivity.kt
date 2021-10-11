@@ -4,9 +4,11 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.kachen.facechecklitedemo.model.DeleteResponseModel
-import com.kachen.facechecklitedemo.model.EnrollResponseModel
 import com.kachen.facechecklitedemo.model.ErrorModel
 import com.kachen.facechecklitedemo.model.IdentifyResponseModel
 import com.kachen.facechecklitedemo.util.ImageUtil
@@ -14,8 +16,9 @@ import com.kachen.facechecklitedemo.util.NetworkUtil
 import com.kachen.facechecklitedemo.util.Util
 import kotlinx.android.synthetic.main.activity_identify.*
 
-class IdentifyActivity : AppCompatActivity() {
 
+class IdentifyActivity : AppCompatActivity() {
+    var response: IdentifyResponseModel? = null
     val REQUEST_CODE_TAKEPHOTO = 11
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,6 +31,27 @@ class IdentifyActivity : AppCompatActivity() {
             this@IdentifyActivity.finish()
         }
         //delete
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        val inflater = menuInflater
+        inflater.inflate(R.menu.menu_identify, menu)
+        // return true so that the menu pop up is opened
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.delete -> {
+                response?.let {
+                    delete(it.NationalID)
+                }
+
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -60,14 +84,16 @@ class IdentifyActivity : AppCompatActivity() {
                 }
 
                 override fun onError(errorModel: ErrorModel) {
-                    Log.e("api", "identify onError "+ errorModel.error_code+" : "+errorModel.msg)
-                    Util.alertErrorDialogShow(this@IdentifyActivity)
+                    Log.e("api", "identify onError " + errorModel.error_code + " : " + errorModel.msg)
+                    Util.alertDialogShow(this@IdentifyActivity, "เกิดข้อผิดพลาด", errorModel.msg, object : Util.DialogActionListener {
+                        override fun action() {
+                        }
+                    })
                 }
 
                 override fun onExpired() {
                     Log.e("api", "identify onExpired")
                     Util.alertErrorDialogShow(this@IdentifyActivity)
-
                 }
             })
         }
@@ -82,12 +108,10 @@ class IdentifyActivity : AppCompatActivity() {
 
                 override fun onError(errorModel: ErrorModel) {
                     Log.e("api", "identify onError")
-
                 }
 
                 override fun onExpired() {
                     Log.e("api", "identify onExpired")
-
                 }
             })
     }

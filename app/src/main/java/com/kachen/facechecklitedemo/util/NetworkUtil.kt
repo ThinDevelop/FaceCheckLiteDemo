@@ -100,24 +100,22 @@ class NetworkUtil {
                     hideLoadingDialog()
                     Log.e("api response", response.toString())
                     response?.let {
-                        val success = !it.has("error")
-                        if (success) {
+                        if ("0001".equals(it.getString("status"))) {
                             if (kClass.isAssignableFrom(TokenResponseModel::class.java)) {
                                 val token = it.optString("access_token")
                                 PreferenceUtil.setToken(token)
                                 listener.onResponse(Gson().fromJson(it.toString(), kClass))
-                            } else if (kClass.isAssignableFrom(VerifyResponseModel::class.java)) {
-                                listener.onResponse(Gson().fromJson(it.getJSONObject("verifyResultSubject").toString(), kClass))
                             } else {
-                                listener.onResponse(Gson().fromJson(it.getJSONObject("SubjectResult").toString(), kClass))
+                                listener.onResponse(Gson().fromJson(it.toString(), kClass))
                             }
                         } else {
-                            val error = it.optString("error", "Local Unknown error")
-                            val obj = JSONObject().put("error_code", error)
-                                .put("msg", it.optString("error_description", it.toString()))
+                            val status = it.optString("status")
+                            val obj = JSONObject().put("error_code", status)
+                                .put("msg", it.optString("message", it.toString()))
                             val errorModel = Gson().fromJson(obj.toString(), ErrorModel::class.java)
                             listener.onError(errorModel)
                             Log.e("ERROR", "code : " + errorModel.error_code + ", msg : " + errorModel.msg)
+
                         }
                     }
                 }
@@ -143,12 +141,18 @@ class NetworkUtil {
                                 }
                             })
                         } else {
+                            var msg = ""
+                            if (it.errorBody != null) {
+                                val body = JSONObject(it.errorBody)
+                                msg = body.optString("message", "เกิดข้อผิดพลาดบางอย่างกรุณาลองใหม่")
+                            }
+
                             val obj = JSONObject().put("status", it.errorCode)
-                                .put("msg", it.message)
+                                .put("msg", msg)
                             val errorModel = Gson().fromJson(obj.toString(), ErrorModel::class.java)
                             listener.onError(errorModel)
 
-                            Log.e("ERROR", "code : " + errorModel.error_code + ", msg : " + errorModel.msg)
+                            Log.e("ERROR", "onError code : " + errorModel.error_code + ", msg : " + errorModel.msg)
                         }
                     }
                 }

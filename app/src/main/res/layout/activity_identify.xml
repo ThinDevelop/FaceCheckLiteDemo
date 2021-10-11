@@ -20,7 +20,9 @@
             android:layout_width="150dp"
             android:layout_height="150dp"
             android:layout_margin="8dp"
-            android:background="#101010" />
+            android:scaleType="center"
+            android:src="@drawable/card_photo"
+            android:background="#49101010" />
     </LinearLayout>
 
     <LinearLayout

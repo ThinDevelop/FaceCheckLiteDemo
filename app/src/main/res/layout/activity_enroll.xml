@@ -20,7 +20,8 @@
             android:layout_height="150dp"
             android:layout_margin="8dp"
             android:layout_weight="1"
-            android:background="#101010" />
+            android:src="@drawable/card_photo"
+            android:background="#49101010" />
 
         <ImageView
             android:id="@+id/takephoto"
@@ -28,7 +29,8 @@
             android:layout_height="150dp"
             android:layout_margin="8dp"
             android:layout_weight="1"
-            android:background="#101010" />
+            android:src="@drawable/ic_baseline_photo_camera_24"
+            android:background="#49101010" />
     </LinearLayout>
 
     <LinearLayout

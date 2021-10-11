@@ -78,7 +78,11 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
 
                         override fun onError(errorModel: ErrorModel) {
                             Log.e("api", "enroll onError "+ errorModel.error_code+" : "+errorModel.msg)
-                            Util.alertErrorDialogShow(this@EnrollActivity)
+                            Util.alertDialogShow(this@EnrollActivity, "เกิดข้อผิดพลาด", errorModel.msg, object : Util.DialogActionListener {
+                                override fun action() {
+
+                                }
+                            })
                         }
 
                         override fun onExpired() {
@@ -219,7 +223,7 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
         name.setText("")
         lastname.setText("")
         edt_address.setText("")
-        readcard.setImageBitmap(null)
+        readcard.setImageDrawable(getDrawable(R.drawable.card_photo))
         readcard.destroyDrawingCache()
     }
 
