@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fl_id"
+    android:layout_gravity="center"
+    android:fitsSystemWindows="true"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:minHeight="480dp"
+    android:background="#FFFFFF">
+
+    <RelativeLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#00000000">
+
+        <RelativeLayout
+            android:id="@+id/preview_container"
+            android:layout_width="match_parent"
+            android:layout_height="320dp"
+            android:background="#FFFFFF"
+            android:minHeight="480dp">
+
+            <FrameLayout
+                android:id="@+id/surface_layout"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+            </FrameLayout>
+
+            <LinearLayout
+                android:id="@+id/scannerLayout"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:layout_centerInParent="true"
+                android:background="@drawable/id_viewfinder"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/scannerBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="5dp"
+                    android:background="@color/design_default_color_secondary" />
+
+
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/imageview_scanbg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_centerInParent="true"
+                android:scaleType="fitXY"/>
+
+        </RelativeLayout>
+
+
+
+        <RelativeLayout
+            android:id="@+id/bg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/preview_container">
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                style="?android:attr/progressBarStyleLarge"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:layout_marginTop="16dp"
+                android:layout_centerInParent="true"
+                android:indeterminate="false" />
+
+            <TextView
+                android:id="@+id/loading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="19dp"
+                android:layout_marginBottom="16dp"
+                android:fontFamily="HWtext-55ST"
+                android:gravity="center"
+                android:layout_below="@+id/progressBar"
+                android:text="กำลังตรวจสอบ..."
+                android:textSize="16dp" />
+        </RelativeLayout>
+
+    </RelativeLayout>
+</FrameLayout>
+
+

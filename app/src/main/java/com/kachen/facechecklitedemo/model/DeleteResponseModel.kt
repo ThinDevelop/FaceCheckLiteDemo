@@ -1,3 +1,5 @@
 package com.kachen.facechecklitedemo.model
 
-class DeleteResponseModel(): BaseResponseModel()
+class DeleteResponseModel(val message: String): BaseResponseModel() {
+
+}

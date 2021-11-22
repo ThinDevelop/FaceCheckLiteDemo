@@ -1,8 +1,12 @@
 package com.kachen.facechecklitedemo
 
+import android.app.Activity
 import android.app.ProgressDialog
+import android.companion.CompanionDeviceManager
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.Rect
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Environment
@@ -17,6 +21,7 @@ import com.centerm.smartpos.aidl.iccard.AidlICCard
 import com.centerm.smartpos.aidl.sys.AidlDeviceManager
 import com.centerm.smartpos.constant.Constant
 import com.google.gson.Gson
+import com.huawei.hms.mlsdk.livenessdetection.*
 import com.kachen.facechecklitedemo.model.CardModel
 import com.kachen.facechecklitedemo.model.EnrollRequestModel
 import com.kachen.facechecklitedemo.model.EnrollResponseModel
@@ -28,6 +33,7 @@ import kotlinx.android.synthetic.main.activity_enroll.*
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+
 
 class EnrollActivity : BaseFaceCheckLiteActivity() {
     private var aidlIdCardTha: AidlIdCardTha? = null
@@ -51,7 +57,8 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
         mLoading?.setMessage("Reading...")
 
         takephoto.setOnClickListener {
-            startActivityForResult(Intent(this@EnrollActivity, TakePhotoActivity::class.java), REQUEST_CODE_TAKEPHOTO)
+            startDetect()
+//            startActivityForResult(Intent(this@EnrollActivity, TakePhotoActivity::class.java), REQUEST_CODE_TAKEPHOTO)
         }
 
         submit.setOnClickListener {
@@ -59,12 +66,7 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
                 val image = ImageUtil.encodeImg(readcard)
                 val enrollImage = ImageUtil.encodeImg(takephoto)
                 if (image != null && enrollImage != null) {
-                    val model = EnrollRequestModel(it.CitizenId,
-                                                                       enrollImage,
-                                                                       image,
-                                                                       it.ThaiFirstName,
-                                                                       it.ThaiLastName,
-                                                                       it.Address)
+                    val model = EnrollRequestModel(it.CitizenId, enrollImage, image, it.ThaiFirstName, it.ThaiLastName, it.Address)
                     NetworkUtil.enroll(model, object : NetworkUtil.Companion.NetworkLisener<EnrollResponseModel> {
                         override fun onResponse(response: EnrollResponseModel) {
                             Log.e("api", "enroll onResponse")
@@ -77,10 +79,9 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
                         }
 
                         override fun onError(errorModel: ErrorModel) {
-                            Log.e("api", "enroll onError "+ errorModel.error_code+" : "+errorModel.msg)
+                            Log.e("api", "enroll onError " + errorModel.error_code + " : " + errorModel.msg)
                             Util.alertDialogShow(this@EnrollActivity, "เกิดข้อผิดพลาด", errorModel.msg, object : Util.DialogActionListener {
                                 override fun action() {
-
                                 }
                             })
                         }
@@ -88,7 +89,6 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
                         override fun onExpired() {
                             Log.e("api", "enroll onExpired")
                             Util.alertErrorDialogShow(this@EnrollActivity)
-
                         }
                     })
                 }
@@ -97,6 +97,35 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
 
 
         }
+    }
+
+    private val callback: MLLivenessCapture.Callback = object : MLLivenessCapture.Callback {
+        override fun onSuccess(p0: MLLivenessCaptureResult?) {
+            takephoto.setImageBitmap(null)
+            p0?.let {
+                Log.e("response","score : "+ it.score)
+
+                if (it.isLive) {
+                    takephoto.setImageBitmap(it.bitmap)
+                } else {
+                    Util.alertDialogShow(this@EnrollActivity, "พบความผิดปกติ", "กด 'OK' เพื่อตรวจสอบใบหน้าอีกครั้ง", object : Util.DialogActionListener {
+                        override fun action() {
+                            startDetect()
+                        }
+                    })
+                }
+            }
+        }
+
+        override fun onFailure(p0: Int) {
+
+        }
+    }
+    private fun startDetect() {
+//        val capture: MLLivenessCapture = MLLivenessCapture.getInstance()
+//        capture.startDetect(activity, callback)
+        startActivityForResult(Intent(this@EnrollActivity, CheckLivenessActivity::class.java), REQUEST_CODE_TAKEPHOTO)
+
     }
 
     override fun onDeviceConnected(deviceManager: AidlDeviceManager?, cpay: Boolean) {
@@ -150,11 +179,12 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
                                                 cardModel = Gson().fromJson(s, CardModel::class.java)
                                                 cardModel?.let {
                                                     runOnUiThread {
-                                                        val id = it.CitizenId.substring(0, 7)+"xxx"+it.CitizenId.substring(it.CitizenId.length-3)
+                                                        val id = it.CitizenId.substring(0,
+                                                                                        7) + "xxx" + it.CitizenId.substring(it.CitizenId.length - 3)
                                                         idnumber.setText(id)
                                                         name.setText(it.ThaiFirstName)
                                                         lastname.setText(it.ThaiLastName)
-                                                        edt_address.setText(it.Address.replace("#"," "))
+                                                        edt_address.setText(it.Address.replace("#", " "))
                                                     }
                                                 }
 
@@ -232,8 +262,13 @@ class EnrollActivity : BaseFaceCheckLiteActivity() {
         if (resultCode != RESULT_OK) return
 
         if (requestCode == REQUEST_CODE_TAKEPHOTO) {
-            val path = data?.getStringExtra("image_path")?:""
-            takephoto.setImageBitmap(ImageUtil.getBitmapFromgetAbsolutePath(path))
+            val status = data?.getStringExtra("status")?:""
+            if (status.equals("retry")) {
+                startDetect()
+            } else {
+                val path = data?.getStringExtra("image_path") ?: ""
+                takephoto.setImageBitmap(ImageUtil.getBitmapFromgetAbsolutePath(path))
+            }
         }
     }
 

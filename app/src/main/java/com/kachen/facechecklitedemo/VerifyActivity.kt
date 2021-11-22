@@ -1,5 +1,6 @@
 package com.kachen.facechecklitedemo
 
+import android.app.Activity
 import android.app.ProgressDialog
 import android.content.Intent
 import android.graphics.Bitmap
@@ -17,6 +18,8 @@ import com.centerm.smartpos.aidl.iccard.AidlICCard
 import com.centerm.smartpos.aidl.sys.AidlDeviceManager
 import com.centerm.smartpos.constant.Constant
 import com.google.gson.Gson
+import com.huawei.hms.mlsdk.livenessdetection.MLLivenessCapture
+import com.huawei.hms.mlsdk.livenessdetection.MLLivenessCaptureResult
 import com.kachen.facechecklitedemo.model.*
 import com.kachen.facechecklitedemo.util.ImageUtil
 import com.kachen.facechecklitedemo.util.NetworkUtil
@@ -57,7 +60,8 @@ class VerifyActivity : BaseFaceCheckLiteActivity() {
         mLoading?.setMessage("Reading...")
 
         takephoto.setOnClickListener {
-            startActivityForResult(Intent(this@VerifyActivity, TakePhotoActivity::class.java), REQUEST_CODE_TAKEPHOTO)
+            startDetect()
+//            startActivityForResult(Intent(this@VerifyActivity, TakePhotoActivity::class.java), REQUEST_CODE_TAKEPHOTO)
         }
 
         submit.setOnClickListener {
@@ -67,10 +71,10 @@ class VerifyActivity : BaseFaceCheckLiteActivity() {
                 if (enrollImage != null) {
                     NetworkUtil.verify(it.CitizenId, enrollImage, object : NetworkUtil.Companion.NetworkLisener<VerifyResponseModel> {
                         override fun onResponse(response: VerifyResponseModel) {
-                            Log.e("api", "verify onResponse MatchStatus : "+response.MatchStatus +", MatchingScore : "+ response.MatchingScore)
+                            Log.e("api", "verify onResponse MatchStatus : "+response.MatchingStatus +", MatchingScore : "+ response.MatchingScore)
 
                             var message = "ไม่ใช่คนเดียวกัน"
-                            if (response.MatchStatus) {
+                            if (response.MatchingStatus) {
                                 message = "เป็นบุคคลเดียวกัน ด้วยคะแนน " + response.MatchingScore
                             }
                             Util.alertDialogShow(this@VerifyActivity, "ผลการตรวจสอบ", message , object : Util.DialogActionListener {
@@ -97,6 +101,36 @@ class VerifyActivity : BaseFaceCheckLiteActivity() {
                 }
             }
         }
+
+    }
+
+
+    private val callback: MLLivenessCapture.Callback = object : MLLivenessCapture.Callback {
+        override fun onSuccess(p0: MLLivenessCaptureResult?) {
+            takephoto.setImageBitmap(null)
+            p0?.let {
+                Log.e("response","score : "+ it.score)
+
+                if (it.isLive) {
+                    takephoto.setImageBitmap(it.bitmap)
+                } else {
+                    Util.alertDialogShow(this@VerifyActivity, "พบความผิดปกติ", "กด 'OK' เพื่อตรวจสอบใบหน้าอีกครั้ง", object : Util.DialogActionListener {
+                        override fun action() {
+                            startDetect()
+                        }
+                    })
+                }
+            }
+        }
+
+        override fun onFailure(p0: Int) {
+
+        }
+    }
+    private fun startDetect() {
+//        val capture: MLLivenessCapture = MLLivenessCapture.getInstance()
+//        capture.startDetect(activity, callback)
+        startActivityForResult(Intent(this@VerifyActivity, CheckLivenessActivity::class.java), REQUEST_CODE_TAKEPHOTO)
 
     }
 
@@ -233,8 +267,13 @@ class VerifyActivity : BaseFaceCheckLiteActivity() {
         if (resultCode != RESULT_OK) return
 
         if (requestCode == REQUEST_CODE_TAKEPHOTO) {
-            val path = data?.getStringExtra("image_path")?:""
-            takephoto.setImageBitmap(ImageUtil.getBitmapFromgetAbsolutePath(path))
+            val status = data?.getStringExtra("status")?:""
+            if (status.equals("retry")) {
+                startDetect()
+            } else {
+                val path = data?.getStringExtra("image_path")?:""
+                takephoto.setImageBitmap(ImageUtil.getBitmapFromgetAbsolutePath(path))
+            }
         }
     }
 

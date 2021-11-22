@@ -26,6 +26,7 @@ import com.google.android.gms.tasks.OnSuccessListener
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.kachen.facechecklitedemo.ml.Model10
 import com.kachen.facechecklitedemo.ml.Model9
 import com.kachen.facechecklitedemo.util.ImageUtil
 import com.kachen.facechecklitedemo.util.YuvToRgbConverter
@@ -47,7 +48,7 @@ lateinit var faceDetector: com.google.mlkit.vision.face.FaceDetector
 // Listener for the result of the ImageAnalyzer
 typealias RecognitionListener = (recognition: List<Recognition>, face: Bitmap) -> Unit
 
-val spoofRate = 0.7 //if result > spoofRate mean this case is spoof
+val spoofRate = 0.55 //if result > spoofRate mean this case is spoof
 var livenessDone = false
 var livenessScore = 0
 var livenessComplateScore = 100
@@ -79,6 +80,8 @@ class TakePhotoActivity : AppCompatActivity() {
             .setMinFaceSize(0.1f)
             .build()
         livenessDone = false
+        livenessScore = 0
+
         faceDetector = FaceDetection.getClient(options)
         // Request camera permissions
         if (allPermissionsGranted()) {
@@ -92,12 +95,14 @@ class TakePhotoActivity : AppCompatActivity() {
         recogViewModel.recognitionList.observe(this, Observer {
             //update data
             for (item in it.recognitions) {
+                Log.e("result", ""+item.label+ " : " + item.confidence)
                 if (item.label.equals("spoof", true)) {
                     if (item.confidence > spoofRate) {
                         Log.e("result", "" + item.confidence + " item.confidence : Spoof")
 //                        txt_result.setText("Spoof")
                         if (livenessScore > 0 && livenessScore < livenessComplateScore) {
-                            livenessScore -= livenessUnitScore
+//                            livenessScore -= livenessUnitScore
+                            livenessScore = 0
 //                            txt_result.setText("livenessScore : " + livenessScore)
                         }
                         pBar.setProgress(livenessScore)
@@ -234,8 +239,8 @@ class TakePhotoActivity : AppCompatActivity() {
             .setDevice(Model.Device.GPU)
             .build()
 
-        //        private val flowerModel = Model3.newInstance(ctx)
-        private val flowerModel = Model9.newInstance(ctx, options)
+//                private val flowerModel = Model10.newInstance(ctx, options)
+        private val flowerModel = Model10.newInstance(ctx, options)
 
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {

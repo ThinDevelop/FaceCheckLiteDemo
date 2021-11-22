@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.kachen.facechecklitedemo">
 
+    <meta-data
+        android:name="com.huawei.hms.ml.DEPENDENCY"
+        android:value="face" />
+
     <application
         android:name=".app.DemoApplication"
         android:allowBackup="true"
@@ -11,6 +15,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.FaceCheckLiteDemo"
+        android:requestLegacyExternalStorage="true"
         tools:ignore="AllowBackup">
         <activity android:name=".MainActivity">
             <intent-filter>
@@ -29,9 +34,14 @@
         <activity
             android:name=".VerifyActivity"
             android:label="Verify" />
+        <activity
+            android:name=".CheckLivenessActivity"
+            android:label="Liveness Checking" />
     </application>
 
     <!-- Specifying that the app will need camera permission -->
+
+
     <uses-feature android:name="android.hardware.camera.any" />
     <uses-permission android:name="android.permission.CPAYSDK_IC_MODULE" />
 
@@ -40,5 +50,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+
+
+    <uses-feature android:name="android.hardware.camera" />
 
 </manifest>
